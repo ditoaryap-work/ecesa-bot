@@ -18,8 +18,10 @@ def _systemd_status(svc: str) -> str:
 
 def _pm2_list() -> list[dict]:
     try:
+        # Jalankan sebagai user yang punya PM2 (ecesaweb)
         r = subprocess.run(
-            ["pm2", "jlist"], capture_output=True, text=True, timeout=10
+            ["sudo", "-u", "ecesaweb", "pm2", "jlist"],
+            capture_output=True, text=True, timeout=10
         )
         return json.loads(r.stdout or "[]")
     except Exception:

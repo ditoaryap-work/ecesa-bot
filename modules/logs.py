@@ -5,10 +5,10 @@ import subprocess
 
 
 LOG_SOURCES = {
-    "nginx_error":  ("tail", ["-n", "30", "/var/log/nginx/error.log"]),
-    "nginx_access": ("tail", ["-n", "30", "/var/log/nginx/access.log"]),
-    "postgresql":   ("journalctl", ["-u", "postgresql", "-n", "30", "--no-pager"]),
-    "redis":        ("journalctl", ["-u", "redis", "-n", "30", "--no-pager"]),
+    "nginx_error":  ("sudo_tail", ["-n", "30", "/var/log/nginx/error.log"]),
+    "nginx_access": ("sudo_tail", ["-n", "30", "/var/log/nginx/access.log"]),
+    "postgresql":   ("journalctl", ["-u", "postgresql@16-main", "-n", "30", "--no-pager"]),
+    "redis":        ("journalctl", ["-u", "redis-server", "-n", "30", "--no-pager"]),
     "pgbouncer":    ("journalctl", ["-u", "pgbouncer", "-n", "30", "--no-pager"]),
     "pm2":          ("pm2", ["logs", "--nostream", "--lines", "30"]),
     "syslog":       ("journalctl", ["-n", "30", "--no-pager"]),
@@ -22,17 +22,18 @@ def get_log(key: str) -> str:
     cmd_type, args = LOG_SOURCES[key]
 
     try:
-        if cmd_type == "tail":
+        if cmd_type == "sudo_tail":
+            r = subprocess.run(["sudo", "tail"] + args, capture_output=True, text=True, timeout=10)
+        elif cmd_type == "tail":
             r = subprocess.run(["tail"] + args, capture_output=True, text=True, timeout=10)
         elif cmd_type == "journalctl":
             r = subprocess.run(["journalctl"] + args, capture_output=True, text=True, timeout=10)
         elif cmd_type == "pm2":
-            r = subprocess.run(["pm2"] + args, capture_output=True, text=True, timeout=15)
+            r = subprocess.run(["sudo", "-u", "ecesaweb", "pm2"] + args, capture_output=True, text=True, timeout=15)
         else:
             return "❌ Tipe log tidak dikenal."
 
         output = r.stdout.strip() or r.stderr.strip() or "(tidak ada output)"
-        # Telegram max 4096 char — potong dari belakang
         if len(output) > 3500:
             output = "...(dipotong)\n" + output[-3400:]
         return output

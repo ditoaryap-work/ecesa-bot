@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Fail2ban integration — lihat banned IPs dan unban.
 """
@@ -13,7 +14,7 @@ def _run(cmd: list[str], timeout: int = 10) -> str:
         return str(e)
 
 
-def is_available() -> bool:
+def is_fail2ban_available() -> bool:
     r = subprocess.run(["which", "fail2ban-client"], capture_output=True)
     return r.returncode == 0
 
@@ -28,25 +29,27 @@ def get_banned_ips(jail: str = "sshd") -> list[str]:
 
 
 def get_fail2ban_status() -> dict:
-    if not is_available():
-        return {"available": False, "jails": [], "banned": {}}
+    try:
+        if not is_fail2ban_available():
+            return {"available": False, "jails": [], "banned": {}}
 
-    # list jails
-    out = _run(["fail2ban-client", "status"])
-    jails_match = re.search(r"Jail list:\s*(.*)", out)
-    jails = []
-    if jails_match:
-        jails = [j.strip() for j in jails_match.group(1).split(",") if j.strip()]
+        # list jails
+        out = _run(["fail2ban-client", "status"])
+        jails_match = re.search(r"Jail list:\s*(.*)", out)
+        jails = []
+        if jails_match:
+            jails = [j.strip() for j in jails_match.group(1).split(",") if j.strip()]
 
-    banned = {}
-    for jail in jails:
-        banned[jail] = get_banned_ips(jail)
+        banned: dict[str, list[str]] = {}
+        for jail in jails:
+            banned[jail] = get_banned_ips(jail)
 
-    return {"available": True, "jails": jails, "banned": banned}
+        return {"available": True, "jails": jails, "banned": banned}
+    except Exception as e:
+        return {"available": False, "jails": [], "banned": {}, "error": str(e)}
 
 
 def unban_ip(ip: str, jail: str = "sshd") -> tuple[bool, str]:
-    # validasi IP sederhana
     if not re.match(r"^[\d\.a-fA-F:]+$", ip):
         return False, "IP tidak valid"
     try:
@@ -60,12 +63,17 @@ def unban_ip(ip: str, jail: str = "sshd") -> tuple[bool, str]:
 
 
 def format_fail2ban(data: dict) -> str:
-    if not data["available"]:
-        return "🛡 <b>Fail2ban</b>\n\n❌ fail2ban tidak terinstall."
+    is_available = data.get("available", False)
+    if not is_available:
+        err = data.get("error", "")
+        msg = f"\n<i>{err}</i>" if err else ""
+        return f"🛡 <b>Fail2ban</b>\n\n❌ fail2ban tidak tersedia.{msg}"
 
     lines = ["🛡 <b>Fail2ban</b>", "─" * 33]
     total_banned = 0
-    for jail, ips in data["banned"].items():
+    banned = data.get("banned", {})
+
+    for jail, ips in banned.items():
         total_banned += len(ips)
         lines.append(f"<b>{jail}</b>: {len(ips)} IP banned")
         for ip in ips[:5]:

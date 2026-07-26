@@ -34,7 +34,7 @@ from modules.system import get_top, format_top, apt_update, optimize, speedtest,
 
 from core.db import get_ssh_logs, get_maintenance, is_muted, set_mute
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN)
@@ -103,13 +103,45 @@ async def cmd_help(msg: Message) -> None:
 
 # ─── Callback handler utama ──────────────────────────────────────────────────
 
+@dp.errors()
+async def error_handler(event, exception: Exception) -> bool:
+    log.exception(f"[ERROR] Unhandled: {exception}")
+    try:
+        if hasattr(event, 'update') and event.update.callback_query:
+            cb = event.update.callback_query
+            if cb.message:
+                await edit(bot, cb.message.message_id,
+                    f"❌ <b>Error</b>\n<code>{type(exception).__name__}: {str(exception)[:200]}</code>",
+                    None)
+    except Exception:
+        pass
+    return True
+
+
 @dp.callback_query()
 async def handle_callback(cb: CallbackQuery) -> None:
     data = cb.data or ""
     msg_id = cb.message.message_id if cb.message else None
 
-    await cb.answer()  # hilangkan loading spinner
+    try:
+        await cb.answer()
+    except Exception:
+        pass
 
+    try:
+        await _dispatch_callback(cb, data, msg_id)
+    except Exception as e:
+        log.exception(f"[CALLBACK ERROR] data={data} error={e}")
+        try:
+            await edit(bot, msg_id,
+                f"❌ <b>Error saat menjalankan:</b> <code>{data}</code>\n"
+                f"<code>{type(e).__name__}: {str(e)[:300]}</code>",
+                None)
+        except Exception:
+            pass
+
+
+async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -> None:
     # ── Navigation ────────────────────────────────────────────────────────────
     if data == "nav:menu":
         await show_menu(CHAT_ID, msg_id)
