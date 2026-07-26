@@ -71,38 +71,25 @@ def _nginx_reload() -> tuple[bool, str]:
     return _run(["sudo", "systemctl", "reload", "nginx"])
 
 
+NGINX_MAINTENANCE_FLAG = "/etc/nginx/ecesa-maintenance.flag"
+
+
 async def enable_maintenance() -> tuple[bool, str]:
-    """
-    1. Tulis halaman maintenance HTML
-    2. Enable nginx maintenance config
-    3. Stop PM2 apps
-    4. Catat ke DB
-    """
     errors = []
 
-    # 1. Tulis HTML
-    _write_maintenance_page()
+    # 1. Set nginx flag → on
+    try:
+        flag_content = "set $maintenance_mode on;\n"
+        r = subprocess.run(
+            ["sudo", "tee", NGINX_MAINTENANCE_FLAG],
+            input=flag_content, capture_output=True, text=True, timeout=10
+        )
+        if r.returncode != 0:
+            errors.append(f"flag write: {r.stderr}")
+    except Exception as e:
+        errors.append(f"flag: {e}")
 
-    # 2. Nginx — symlink maintenance config ke sites-enabled
-    maint_enabled = "/etc/nginx/sites-enabled/maintenance"
-    normal_enabled = "/etc/nginx/sites-enabled/default"
-
-    # disable normal site
-    if os.path.islink(normal_enabled):
-        ok, out = _run(["sudo", "rm", normal_enabled])
-        if not ok:
-            errors.append(f"rm default site: {out}")
-
-    # enable maintenance site kalau ada
-    if os.path.isfile(NGINX_MAINTENANCE_CONF):
-        if not os.path.islink(maint_enabled):
-            ok, out = _run(["sudo", "ln", "-s", NGINX_MAINTENANCE_CONF, maint_enabled])
-            if not ok:
-                errors.append(f"ln maintenance: {out}")
-    else:
-        # fallback — return 503 via nginx inline config
-        _write_nginx_503()
-
+    # 2. Reload nginx
     ok, out = _nginx_reload()
     if not ok:
         errors.append(f"nginx reload: {out}")
@@ -110,58 +97,54 @@ async def enable_maintenance() -> tuple[bool, str]:
     # 3. Stop PM2
     if PM2_PROCESSES:
         for name in PM2_PROCESSES:
-            _run(["pm2", "stop", name])
+            subprocess.run(["sudo", "-u", "ecesaweb", "pm2", "stop", name],
+                         capture_output=True, timeout=30)
     else:
-        _run(["pm2", "stop", "all"])
+        subprocess.run(["sudo", "-u", "ecesaweb", "pm2", "stop", "all"],
+                      capture_output=True, timeout=30)
 
     # 4. DB
     await set_maintenance(True)
 
     if errors:
         return False, "Partial error:\n" + "\n".join(errors)
-    return True, "Maintenance diaktifkan."
+    return True, "Maintenance diaktifkan. ecesa.id → halaman maintenance."
 
 
 async def disable_maintenance() -> tuple[bool, str]:
-    """
-    1. Disable nginx maintenance config
-    2. Re-enable normal config
-    3. Start PM2 apps
-    4. Catat ke DB
-    """
     errors = []
 
-    maint_enabled = "/etc/nginx/sites-enabled/maintenance"
-    normal_enabled = "/etc/nginx/sites-enabled/default"
+    # 1. Set nginx flag → off
+    try:
+        flag_content = "set $maintenance_mode off;\n"
+        r = subprocess.run(
+            ["sudo", "tee", NGINX_MAINTENANCE_FLAG],
+            input=flag_content, capture_output=True, text=True, timeout=10
+        )
+        if r.returncode != 0:
+            errors.append(f"flag write: {r.stderr}")
+    except Exception as e:
+        errors.append(f"flag: {e}")
 
-    # remove maintenance symlink
-    if os.path.islink(maint_enabled):
-        ok, out = _run(["sudo", "rm", maint_enabled])
-        if not ok:
-            errors.append(f"rm maintenance: {out}")
-
-    # re-enable normal site
-    if not os.path.islink(normal_enabled) and os.path.isfile(NGINX_NORMAL_CONF):
-        ok, out = _run(["sudo", "ln", "-s", NGINX_NORMAL_CONF, normal_enabled])
-        if not ok:
-            errors.append(f"ln normal site: {out}")
-
+    # 2. Reload nginx
     ok, out = _nginx_reload()
     if not ok:
         errors.append(f"nginx reload: {out}")
 
-    # start PM2
+    # 3. Start PM2
     if PM2_PROCESSES:
         for name in PM2_PROCESSES:
-            _run(["pm2", "start", name])
+            subprocess.run(["sudo", "-u", "ecesaweb", "pm2", "start", name],
+                         capture_output=True, timeout=30)
     else:
-        _run(["pm2", "resurrect"])
+        subprocess.run(["sudo", "-u", "ecesaweb", "pm2", "resurrect"],
+                      capture_output=True, timeout=30)
 
     await set_maintenance(False)
 
     if errors:
         return False, "Partial error:\n" + "\n".join(errors)
-    return True, "Maintenance selesai. Sistem kembali normal."
+    return True, "Maintenance selesai. ecesa.id kembali normal."
 
 
 def _write_nginx_503() -> None:
