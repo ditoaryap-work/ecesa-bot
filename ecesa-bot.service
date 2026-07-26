@@ -1,0 +1,24 @@
+[Unit]
+Description=Ecesa VPS Monitor Bot
+After=network.target
+
+[Service]
+Type=simple
+User=vpsbot
+WorkingDirectory=/opt/ecesa-bot
+EnvironmentFile=/opt/ecesa-bot/.env
+ExecStart=/opt/ecesa-bot/venv/bin/python3 bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ecesa-bot
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/ecesa-bot/state
+
+[Install]
+WantedBy=multi-user.target
