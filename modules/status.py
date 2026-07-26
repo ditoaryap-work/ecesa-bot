@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Status screen — CPU, RAM, disk, network, uptime, TLS.
 """

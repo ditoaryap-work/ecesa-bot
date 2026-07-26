@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Maintenance mode — toggle nginx ke halaman maintenance + stop/start PM2.
 """

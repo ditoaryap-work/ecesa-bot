@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 System tools — top processes, reboot, apt update, optimize, speedtest, backup.
 """

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Services monitor — systemd + PM2.
 """

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Healthcheck — dijalankan via cron tiap 5 menit.
 State-based: hanya kirim alert saat status BERUBAH (ok→fail atau fail→ok).

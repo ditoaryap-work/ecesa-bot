@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 SQLite wrapper via aiosqlite.
 Menyimpan: alert state, SSH log history, mute state, maintenance log.

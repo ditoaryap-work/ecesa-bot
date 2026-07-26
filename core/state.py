@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 In-memory shared state untuk hal yang tidak perlu persist ke disk.
 Hal yang perlu persist (mute, maintenance) ada di db.py.

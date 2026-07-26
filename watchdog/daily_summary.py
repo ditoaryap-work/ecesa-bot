@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Daily summary — dijalankan via cron tiap hari jam 08:00 WIB.
 """

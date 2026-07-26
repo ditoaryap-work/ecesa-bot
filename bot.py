@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Main bot — entry point, handler semua command & callback.
 """

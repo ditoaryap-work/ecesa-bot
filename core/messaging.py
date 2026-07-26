@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Helper send/edit/delete message — semua interaksi Telegram lewat sini.
 """

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 SSH login notifier — dipanggil via PAM hook saat ada SSH login.
 Usage: python3 ssh_notify.py <username> <ip>

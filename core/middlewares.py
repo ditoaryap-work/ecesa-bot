@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Middlewares:
 1. AuthMiddleware   — tolak semua request dari chat_id selain CHAT_ID

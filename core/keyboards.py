@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Semua inline keyboard builder ada di sini.
 Konsisten: tiap screen punya keyboard-nya sendiri.
