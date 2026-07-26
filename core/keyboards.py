@@ -127,13 +127,19 @@ def kb_maintenance_confirm(action: str) -> InlineKeyboardMarkup:
 
 def kb_system() -> InlineKeyboardMarkup:
     return _kb([
-        [("📦 Update Packages", "sys:update")],
-        [("⚡ Optimize (BBR/Swap/Cache)", "sys:optimize")],
+        [("📦 Update Packages", "sys:update_ask")],
+        [("⚡ Optimize (BBR/Swap/Cache)", "sys:optimize_ask")],
         [("🚀 Speedtest", "sys:speedtest")],
         [("🔝 Top Processes", "sys:top")],
-        [("💾 Backup Sekarang", "sys:backup")],
+        [("💾 Backup Sekarang", "sys:backup_ask")],
         [("🔁 Reboot Server", "sys:reboot_ask")],
         [("🏠 Menu", "nav:menu")],
+    ])
+
+
+def kb_confirm(action: str, back: str = "nav:system") -> InlineKeyboardMarkup:
+    return _kb([
+        [("✅ Ya, lanjutkan", action), ("❌ Batal", back)],
     ])
 
 

@@ -20,6 +20,7 @@ from core.keyboards import (
     kb_logs, kb_log_view, kb_disk, kb_fail2ban, kb_sshlog,
     kb_maintenance_off, kb_maintenance_on, kb_maintenance_confirm,
     kb_system, kb_reboot_confirm, kb_back_system, kb_mute, kb_ssh_alert,
+    kb_confirm,
 )
 from core.state import state
 
@@ -31,7 +32,7 @@ from modules.fail2ban import get_fail2ban_status, format_fail2ban, unban_ip
 from modules.sshlog import format_sshlog
 from modules.maintenance import enable_maintenance, disable_maintenance, format_maintenance
 from modules.mute import mute_for, format_mute
-from modules.system import get_top, format_top, apt_update, optimize, speedtest, run_backup, reboot_server
+from modules.system import get_top, format_top, apt_update, optimize, speedtest, run_backup, reboot_server, check_pending_updates
 
 from core.db import get_ssh_logs, get_maintenance, is_muted, set_mute
 
@@ -303,6 +304,17 @@ async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -
         procs = await asyncio.get_event_loop().run_in_executor(None, get_top)
         await edit(bot, msg_id, format_top(procs), kb_back_system())
 
+    elif data == "sys:optimize_ask":
+        await edit(bot, msg_id,
+            "⚡ <b>Optimize Server</b>\n"
+            f"{'─' * 33}\n"
+            "Akan menjalankan:\n"
+            "• Drop page cache → bebaskan RAM\n"
+            "• Aktifkan BBR TCP congestion control\n"
+            "• Cek status swap\n\n"
+            "⚠️ Drop cache bisa bikin akses pertama sedikit lebih lambat.",
+            kb_confirm("sys:optimize"))
+
     elif data == "sys:optimize":
         await edit(bot, msg_id, "⏳ Menjalankan optimasi...", None)
         result = await asyncio.get_event_loop().run_in_executor(None, optimize)
@@ -313,16 +325,40 @@ async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -
         result = await asyncio.get_event_loop().run_in_executor(None, speedtest)
         await edit(bot, msg_id, result, kb_back_system())
 
+    elif data == "sys:update_ask":
+        pending = await asyncio.get_event_loop().run_in_executor(None, check_pending_updates)
+        await edit(bot, msg_id,
+            "📦 <b>Update Packages</b>\n"
+            f"{'─' * 33}\n"
+            f"Paket pending   : <b>{pending} paket</b>\n"
+            f"Perintah        : <code>apt update && apt upgrade -y</code>\n\n"
+            "⚠️ Proses ini bisa memakan waktu beberapa menit.\n"
+            "Bot tetap berjalan selama update.",
+            kb_confirm("sys:update"))
+
     elif data == "sys:update":
-        await edit(bot, msg_id, "⏳ Menjalankan apt update...", None)
+        await edit(bot, msg_id, "⏳ Menjalankan apt update & upgrade...", None)
         result = await asyncio.get_event_loop().run_in_executor(None, apt_update)
         await edit(bot, msg_id, result, kb_back_system())
+
+    elif data == "sys:backup_ask":
+        import shutil
+        backup_free = shutil.disk_usage("/var/backups").free / 1e9
+        await edit(bot, msg_id,
+            "💾 <b>Backup Database</b>\n"
+            f"{'─' * 33}\n"
+            f"Database        : <code>ecesa_prod</code>\n"
+            f"Format          : <code>SQL gzip (.sql.gz)</code>\n"
+            f"Estimasi size   : ~10-15 MB\n"
+            f"Simpan di       : <code>/var/backups/ecesa/</code>\n"
+            f"Free disk       : <code>{backup_free:.1f} GB</code>\n\n"
+            "📤 File akan dikirim ke chat ini setelah selesai.",
+            kb_confirm("sys:backup"))
 
     elif data == "sys:backup":
         await edit(bot, msg_id, "⏳ Menjalankan backup database...", None)
         ok, msg_text, file_path = await asyncio.get_event_loop().run_in_executor(None, run_backup)
         await edit(bot, msg_id, msg_text, kb_back_system())
-        # Kirim file ke Telegram kalau sukses dan ukuran ≤ 50MB
         if ok and file_path and os.path.isfile(file_path):
             size_mb = os.path.getsize(file_path) / 1e6
             if size_mb <= 50:
@@ -331,7 +367,7 @@ async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -
                     await bot.send_document(
                         chat_id=CHAT_ID,
                         document=doc,
-                        caption=f"📦 Backup <code>{os.path.basename(file_path)}</code>\n💾 {size_mb:.2f} MB",
+                        caption=f"📦 <code>{os.path.basename(file_path)}</code>\n💾 {size_mb:.2f} MB",
                         parse_mode="HTML"
                     )
                 except Exception as e:
@@ -339,10 +375,14 @@ async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -
 
     elif data == "sys:reboot_ask":
         await edit(bot, msg_id,
-            "⚠️ <b>REBOOT SERVER?</b>\n─" * 1 + "─" * 32 + "\n"
-            "Server akan restart.\n"
-            "Estimasi downtime: ~30-60 detik.",
-            kb_reboot_confirm())
+            "🔁 <b>Reboot Server</b>\n"
+            f"{'─' * 33}\n"
+            "⚠️ <b>Server akan direstart!</b>\n\n"
+            "• Semua koneksi aktif akan terputus\n"
+            "• Estimasi downtime: ~30-60 detik\n"
+            "• Bot otomatis nyala kembali setelah reboot\n\n"
+            "Yakin mau reboot sekarang?",
+            kb_confirm("sys:reboot_do", "nav:system"))
 
     elif data == "sys:reboot_do":
         await edit(bot, msg_id,
