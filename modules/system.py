@@ -76,30 +76,38 @@ def check_pending_updates() -> int:
 def optimize() -> str:
     results = []
 
-    # Drop caches
+    # Drop caches via sudo tee
     try:
-        with open("/proc/sys/vm/drop_caches", "w") as f:
-            f.write("3")
-        results.append("✅ Page cache di-drop")
+        r = subprocess.run(
+            ["sudo", "tee", "/proc/sys/vm/drop_caches"],
+            input="3", capture_output=True, text=True, timeout=10
+        )
+        if r.returncode == 0:
+            results.append("✅ Page cache di-drop")
+        else:
+            results.append(f"❌ Drop cache: {r.stderr.strip()}")
     except Exception as e:
         results.append(f"❌ Drop cache: {e}")
 
-    # Enable BBR kalau belum
+    # Enable BBR via sudo sysctl
     ok, out = _run(["sysctl", "net.ipv4.tcp_congestion_control"])
     if "bbr" not in out.lower():
-        _run(["sudo", "sysctl", "-w", "net.ipv4.tcp_congestion_control=bbr"])
-        results.append("✅ BBR diaktifkan")
+        ok2, out2 = _run(["sudo", "sysctl", "-w", "net.ipv4.tcp_congestion_control=bbr"])
+        results.append("✅ BBR diaktifkan" if ok2 else f"❌ BBR: {out2}")
     else:
         results.append("ℹ️ BBR sudah aktif")
 
     # Check swap
     ok, out = _run(["swapon", "--show"])
-    if not out.strip():
+    lines = [l for l in out.splitlines() if l.strip() and "NAME" not in l]
+    if not lines:
         results.append("⚠️ Tidak ada swap aktif")
     else:
-        results.append(f"ℹ️ Swap: {out.splitlines()[1] if len(out.splitlines()) > 1 else out}")
+        for line in lines:
+            results.append(f"ℹ️ Swap: {line.strip()}")
 
-    return "⚡ <b>Optimize</b>\n─" * 1 + "─" * 32 + "\n" + "\n".join(results)
+    sep = "─" * 33
+    return f"⚡ <b>Optimize</b>\n{sep}\n" + "\n".join(results)
 
 
 # ─── Speedtest ────────────────────────────────────────────────────────────────
@@ -135,16 +143,47 @@ def reboot_server() -> tuple[bool, str]:
 
 # ─── Backup ──────────────────────────────────────────────────────────────────
 
-def run_backup() -> str:
+def run_backup() -> tuple[bool, str, str | None]:
+    """
+    Jalankan pg_dump lalu gzip.
+    Return: (success, message, file_path|None)
+    """
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    dump_path = os.path.join(BACKUP_DIR, f"{BACKUP_DB_NAME}_{ts}.pgdump")
+    dump_path = os.path.join(BACKUP_DIR, f"{BACKUP_DB_NAME}_{ts}.sql.gz")
 
-    ok, out = _run([
-        "pg_dump", "-Fc", "-d", BACKUP_DB_NAME, "-f", dump_path
-    ], timeout=300)
+    try:
+        # pg_dump via sudo -u postgres | gzip langsung
+        pg = subprocess.Popen(
+            ["sudo", "-u", "postgres", "pg_dump", "-d", BACKUP_DB_NAME],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        gz = subprocess.Popen(
+            ["gzip", "-c"],
+            stdin=pg.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if pg.stdout:
+            pg.stdout.close()
+        gz_out, gz_err = gz.communicate(timeout=300)
+        pg.wait(timeout=10)
 
-    if ok:
-        size = os.path.getsize(dump_path) / 1e6 if os.path.isfile(dump_path) else 0
-        return f"✅ Backup selesai\n📁 <code>{dump_path}</code>\n💾 Size: {size:.1f} MB"
-    return f"❌ Backup gagal:\n<pre>{out[:500]}</pre>"
+        if pg.returncode != 0:
+            err = pg.stderr.read().decode() if pg.stderr else ""
+            return False, f"❌ pg_dump gagal:\n<code>{err[:300]}</code>", None
+
+        with open(dump_path, "wb") as f:
+            f.write(gz_out)
+
+        size_mb = round(os.path.getsize(dump_path) / 1e6, 2)
+        msg = (
+            f"✅ <b>Backup selesai</b>\n"
+            f"📁 <code>{dump_path}</code>\n"
+            f"💾 Size: <b>{size_mb} MB</b>\n"
+            f"🕐 {datetime.now().strftime('%d %b %Y %H:%M WIB')}"
+        )
+        return True, msg, dump_path
+
+    except subprocess.TimeoutExpired:
+        return False, "❌ Backup timeout (>5 menit)", None
+    except Exception as e:
+        return False, f"❌ Backup error: <code>{e}</code>", None

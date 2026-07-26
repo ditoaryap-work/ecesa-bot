@@ -4,11 +4,12 @@ Main bot — entry point, handler semua command & callback.
 """
 import asyncio
 import logging
+import os
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 
 from core.config import BOT_TOKEN, CHAT_ID
 from core.db import init_db
@@ -318,9 +319,23 @@ async def _dispatch_callback(cb: CallbackQuery, data: str, msg_id: int | None) -
         await edit(bot, msg_id, result, kb_back_system())
 
     elif data == "sys:backup":
-        await edit(bot, msg_id, "⏳ Menjalankan backup...", None)
-        result = await asyncio.get_event_loop().run_in_executor(None, run_backup)
-        await edit(bot, msg_id, result, kb_back_system())
+        await edit(bot, msg_id, "⏳ Menjalankan backup database...", None)
+        ok, msg_text, file_path = await asyncio.get_event_loop().run_in_executor(None, run_backup)
+        await edit(bot, msg_id, msg_text, kb_back_system())
+        # Kirim file ke Telegram kalau sukses dan ukuran ≤ 50MB
+        if ok and file_path and os.path.isfile(file_path):
+            size_mb = os.path.getsize(file_path) / 1e6
+            if size_mb <= 50:
+                try:
+                    doc = FSInputFile(file_path, filename=os.path.basename(file_path))
+                    await bot.send_document(
+                        chat_id=CHAT_ID,
+                        document=doc,
+                        caption=f"📦 Backup <code>{os.path.basename(file_path)}</code>\n💾 {size_mb:.2f} MB",
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    await send(bot, f"⚠️ Backup OK tapi gagal kirim file: <code>{e}</code>")
 
     elif data == "sys:reboot_ask":
         await edit(bot, msg_id,
