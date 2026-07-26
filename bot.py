@@ -90,13 +90,14 @@ async def cmd_status(msg: Message) -> None:
 
 @dp.message(Command("help"))
 async def cmd_help(msg: Message) -> None:
+    sep = "─" * 33
     text = (
-        "🤖 <b>Ecesa Bot — Commands</b>\n"
-        "─" * 33 + "\n"
-        "/start atau /menu — buka menu utama\n"
-        "/status — live status server\n"
-        "/help — tampilkan ini\n\n"
-        "Semua fitur tersedia via menu interaktif."
+        f"🤖 <b>Ecesa Bot — Commands</b>\n"
+        f"{sep}\n"
+        f"/start atau /menu — buka menu utama\n"
+        f"/status — live status server\n"
+        f"/help — tampilkan ini\n\n"
+        f"Semua fitur tersedia via menu interaktif."
     )
     await send(bot, text)
 

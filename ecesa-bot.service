@@ -15,9 +15,8 @@ StandardError=journal
 SyslogIdentifier=ecesa-bot
 
 # Security hardening
-NoNewPrivileges=yes
+# NoNewPrivileges dinonaktifkan karena bot butuh sudo untuk nginx reload, systemctl, dll
 PrivateTmp=yes
-ProtectSystem=strict
 ReadWritePaths=/opt/ecesa-bot/state
 
 [Install]

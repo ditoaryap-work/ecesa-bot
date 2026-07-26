@@ -171,23 +171,24 @@ server {
 
 
 def format_maintenance(data: dict) -> str:
+    sep = "─" * 33
     if data["active"]:
         started = data.get("started_at", "?")
         return (
-            "🚧 <b>Maintenance Mode</b>\n"
-            "─" * 33 + "\n"
-            "Status : 🔴 <b>MAINTENANCE AKTIF</b>\n"
+            f"🚧 <b>Maintenance Mode</b>\n"
+            f"{sep}\n"
+            f"Status : 🔴 <b>MAINTENANCE AKTIF</b>\n"
             f"Sejak  : <code>{started}</code>\n\n"
-            "• Nginx → halaman maintenance\n"
-            "• PM2 apps → stopped\n"
-            "• Alert → dimatikan"
+            f"• Nginx → halaman maintenance\n"
+            f"• PM2 apps → stopped\n"
+            f"• Alert → dimatikan"
         )
     return (
-        "🚧 <b>Maintenance Mode</b>\n"
-        "─" * 33 + "\n"
-        "Status : 🟢 <b>NORMAL</b>\n\n"
-        "Aktifkan untuk:\n"
-        "• Redirect nginx ke halaman maintenance\n"
-        "• Stop semua PM2 apps\n"
-        "• Matikan semua alert"
+        f"🚧 <b>Maintenance Mode</b>\n"
+        f"{sep}\n"
+        f"Status : 🟢 <b>NORMAL</b>\n\n"
+        f"Aktifkan untuk:\n"
+        f"• Redirect nginx ke halaman maintenance\n"
+        f"• Stop semua PM2 apps\n"
+        f"• Matikan semua alert"
     )
